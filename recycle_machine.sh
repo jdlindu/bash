@@ -6,15 +6,24 @@ IPADDR=`ifconfig|grep "inet addr"|awk '{print $2}'|awk -F ":" '{print $2}'|grep 
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-LOG_DIR=/var/log/sysop_manager/
-source commonFunction.sh
+if [ "$1" != "Fpyrn5jMYzeyjqX0x6" ];then
+	echo "passwd no correct."
+	echo "aaRESULT=1"
+	exit 1
+fi
 
-TMP_FILE=`mktemp /root/tmp.XXXX`
+if [ "$2" == "tool_platform" ];then
+	source commonFunction.sh
+fi
+
+LOG_DIR=/var/log/sysop_manager/
+
+TMP_FILE=`mktemp /tmp/tmp.XXXX`
 # check linux version
 cat /etc/issue|grep -E "CentOS|Red" && LINUX_VERSION="centos"
 cat /etc/issue|grep -E "Ubuntu" && LINUX_VERSION="ubuntu"
 SYSTEM_VERSION=`getconf LONG_BIT`
-if [ "$LINUX_VERSION" = "" ] || [ "$SYSTEM_VERSION" == "" ];then exit 1;fi
+if [ "$LINUX_VERSION" = "" ] || [ "$SYSTEM_VERSION" == "" ];then echo "aaRESULT=1";exit 1;fi
 
 SERVER_IDS=`cat /home/dspeak/yyms/hostinfo.ini|grep "^server_id"|awk -F "=" '{print $2}'`
 
@@ -79,9 +88,17 @@ bash /etc/init.d/syslog-ng stop >/dev/null 2>&1 || pkill -9 -f syslog-ng
 
 # clean the /etc/hosts
 cat /etc/hosts|grep -v -E "^#|^$" | grep -E "balance.*com|sdaemon.*com|rdaemon.*com|yycookie.*com|bc.*com|config.*com|mirror.*com" > $TMP_FILE
-[[ "$LINUX_VERSION" == "ubuntu" ]] && $(echo -e "127.0.0.1 ubuntu localhost\n127.0.1.1 ubuntu localhost\n" > /etc/hosts;cat $TMP_FILE >> /etc/hosts;echo "ubuntu" > /etc/hostname;)
+[[ "$LINUX_VERSION" == "ubuntu" ]] && $(echo -e "127.0.0.1 ubuntu\n127.0.1.1 ubuntu\n" > /etc/hosts;cat $TMP_FILE >> /etc/hosts;echo "ubuntu" > /etc/hostname;)
 [[ "$LINUX_VERSION" == "centos" ]] && $(echo -e "127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4" > /etc/hosts;cat $TMP_FILE >> /etc/hosts;sed -i "s/HOSTNAME/HOSTNAME=localhost/g" /etc/sysconfig/network)
 echo "SERVER_INFO\t$IPADDR\t重置/etc/hosts 完毕."
+
+# clean the rc.local
+RC_FILE=/etc/rc.local
+cat /dev/null > $RC_FILE
+echo "cd /home/dspeak/yyms/yyms_agent_2_d/build && ./yyms_agent_2_d &" >> $RC_FILE
+echo "cd /home/dspeak/yyms/yymp/yyac_worker_ant/bin && ./yyac_worker_ant_d &" >> $RC_FILE
+unset RC_FILE
+echo "SERVER_INFO\t$IPADDR\t清理rc.local 完毕."
 
 # clean /root directory
 rm -rf /root/*
@@ -93,12 +110,14 @@ echo "SERVER_INFO\t$IPADDR\t清除/root和路由信息 完毕."
 for a in `ls -l /home|grep -v -E "yuwanfu|wuhaiting|hujinli|zhangtao|backup|dspeak|total"|awk '{print $NF}'`;do
 	/usr/sbin/userdel -r $a > /dev/null 2>&1
 	rm -rf /home/$a > /dev/null 2>&1
+	sed -i "/$a/d" /etc/group
 done
 unset a
 rm -rf /home/backup/*
 #清理/etc/passwd /etc/group
 for a in `cat /etc/passwd|grep -E "/bin/bash|/bin/sh"|grep -v -E '^#|user_00|yuwanfu|wuhaiting|hujinli|zhangtao|backup|dspeak|total'| awk -F : '{if($3>=500) print $1}'`;do
 	sed -i "/$a/d" /etc/passwd
+	sed -i "/$a/d" /etc/group
 done
 chmod 644 /etc/passwd /etc/group
 unset a
@@ -131,10 +150,6 @@ cat /dev/null > /var/log/messages
 [[ -f /var/log/error ]] && cat /dev/null > /var/log/error
 echo "SERVER_INFO\t$IPADDR\t清理/var/log/ 完毕."
 
-for a in "apache" "mysql";do
-	process_line=`ps aux |grep "$a"|grep -v -E "ssh|grep"|wc -l`
-	[[ "$process_line" != "0" ]] && pkill -9 -f $a > /dev/null 2>&1
-done
 rm -rf /usr/local/mysql*
 aptitude -y remove apache2 mysqld mysql > /dev/null 2>&1
 
@@ -162,7 +177,7 @@ fi
 # 清理/data /data1....所有内容，时间比较久
 (
 cat << 'EOF'
-#!/bin/bash
+/bin/bash
 
 for a in `cat /etc/mtab|grep "\/data.*"|awk '{print $2}'`;do
 if [ "$a" == "/data" ];then
@@ -181,43 +196,34 @@ rm -rf /tmp/*
 rm $0
 
 EOF
-) > $TMP_FILE
-/bin/bash $TMP_FILE &
+) > /tmp/clean_system.sh
+/bin/bash /tmp/clean_system.sh &
 echo "SERVER_INFO\t$IPADDR\t清理所有分区数据....."
 
 # 修改业务模块和负责人
-wget -O $TMP_FILE -t 3 -T 2 "http://esb.sysop.duowan.com:35000/webservice/server/updateServerAdmin.do?server_id=$SERVER_IDS&sysop_admin=dw_hujinli&tech_admin=dw_hujinli&bak_sysop_admin=dw_hujinli&bus_id=000000100000100041103876"
-cat $TMP_FILE|grep -q "true"
-if [ "$?" -eq 0 ];then
-	echo "SERVER_INFO\t$IPADDR\t修改为buffer机器，负责人胡锦礼 完毕"
-else
-	cat /dev/null > $TMP_FILE
-	wget -O $TMP_FILE -t 3 -T 2 "http://esb.sysop.duowan.com:35000/webservice/server/updateServerAdmin.do?server_id=$SERVER_IDS&sysop_admin=dw_hujinli&tech_admin=dw_hujinli&bak_sysop_admin=dw_hujinli&bus_id=000000100000100041103876"
-	cat $TMP_FILE|grep -q "true"
-	if [ "$?" -eq 0 ];then
-		echo "SERVER_INFO\t$IPADDR\t修改为buffer机器，负责人胡锦礼 完毕"
-	else
-		echo "SERVER_INFO\t$IPADDR\t修改业务模块和负责人失败，请手工修改."
-	fi
-fi
-rm -f $TMP_FILE
+#wget -O /tmp/tmp.sdfef -t 3 -T 2 "http://esb.sysop.duowan.com:35000/webservice/server/updateServerAdmin.do?server_id=$SERVER_IDS&sysop_admin=dw_hujinli&tech_admin=dw_hujinli&bus_id=000000100000100041103876"
+#cat /tmp/tmp.sdfef|grep -q "true"
+#if [ "$?" -eq 0 ];then
+#	echo "SERVER_INFO\t$IPADDR\t修改为buffer机器，负责人胡锦礼 完毕"
+#else
+#	cat /dev/null > /tmp/tmp.sdfef
+#	wget -O /tmp/tmp.sdfef -t 3 -T 2 "http://esb.sysop.duowan.com:35000/webservice/server/updateServerAdmin.do?server_id=$SERVER_IDS&sysop_admin=dw_hujinli&tech_admin=dw_hujinli&bus_id=000000100000100041103876"
+#	cat /tmp/tmp.sdfef|grep -q "true"
+#	if [ "$?" -eq 0 ];then
+#		echo "SERVER_INFO\t$IPADDR\t修改为buffer机器，负责人胡锦礼 完毕"
+#	else
+#		echo "SERVER_INFO\t$IPADDR\t修改业务模块和负责人失败，请手工修改."
+#	fi
+#fi
+rm -f /tmp/tmp.sdfef
 /etc/init.d/syslog-ng start
 /etc/init.d/cron* start
 
-# clean the rc.local
-RC_FILE=/etc/rc.local
-cat /dev/null > $RC_FILE
-echo "cd /home/dspeak/yyms/yyms_agent_2_d/build && ./yyms_agent_2_d &" >> $RC_FILE
-echo "cd /home/dspeak/yyms/yymp/yyac_worker_ant/bin && ./yyac_worker_ant_d &" >> $RC_FILE
-unset RC_FILE
-echo "SERVER_INFO\t$IPADDR\t清理rc.local 完毕."
-
-# 统一修改为comm_repos
-if [ ! -d /usr/local/i386/comm_repos/ ];then
-	echo "SERVER_INFO\t$IPADDR\t修改为YY角色..."
-	bash change_server_role_comm_repos.sh &
+if [ "$2" == "tool_platform" ];then
+	code=0; msg="$SCRIPT_NAME [INFO ] | successful."
+	printResult "$code" "$msg"
+	exit $code
+else
+	echo "aaRESULT=0"
+	exit 0
 fi
-
-code=0; msg="$SCRIPT_NAME [INFO ] | successful."
-printResult "$code" "$msg"
-exit $code	
