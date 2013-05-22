@@ -66,7 +66,7 @@ done
 function is_synced {
 	while :
 	do
-        	msg_file=$(sudo find /data/ -name "msg.*" -mmin -1)
+        	msg_file=$(sudo find /data/ -name "msg.0*" -mmin -30)
         	[[ -z "$msg_file" ]] && break
 	done	
 }
