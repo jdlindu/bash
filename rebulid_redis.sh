@@ -66,7 +66,7 @@ done
 function is_synced {
 	while :
 	do
-        	msg_file=$(sudo find /data/ -name "msg.0*" -mmin -30)
+        	msg_file=$(sudo find /data/ -name "msg.0*" -mmin -30 -size +0c )
         	[[ -z "$msg_file" ]] && break
 	done	
 }
@@ -124,7 +124,7 @@ ssh -np32200 $dstip "sudo sed -i 's/<mode>2<\/mode>/<mode>1<\/mode>/' $sqc_dir'/
 echo 'waiting data be synced to redis'
 while :
 do
-	msg_file=$(ssh -np32200 $dstip 'find /data/ -name "msg.0*" -mmin -30')
+	msg_file=$(ssh -np32200 $dstip 'find /data/ -name "msg.0*" -mmin -30 -size +0c ')
 	[[ -z "$msg_file" ]] && break
 done
 echo 'finally starting dbd process'
