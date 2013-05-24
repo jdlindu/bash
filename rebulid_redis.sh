@@ -94,37 +94,38 @@ confirm_next "Step 1 : Please stop $scrip $1  db_rdsesscache_d in pakage system 
 
 
 echo "turning $scrip and $1 's sqc to store mode"
-ssh -np32200 $dstip "sudo sed -i 's/<mode>1<\/mode>/<mode>2<\/mode>/' $sqc_dir'/bin/sqc_redis.xml' && sudo bash $sqc_dir/admin/restart.sh" 
+ssh -np32200 $dstip "sudo sed -i 's/<mode>1<\/mode>/<mode>2<\/mode>/' $sqc_dir'/bin/sqc_redis.xml' && sudo bash $sqc_dir/admin/restart.sh" || exit
 echo "$dstip 's sqc restart succeed!"
 sleep 10
 turn2store $sqc_dir"/bin/sqc_redis.xml" 
 sudo bash $sqc_dir'/admin/restart.sh'
 
 
-confirm_next 'Step2 : dump redis data ?(yes/no)'
+echo 'Step2 : dump redis data ?(yes/no)'
 sudo rm /data1/dump.rdb.*
 /data1/redis-cli -p 6380 save
 /data1/redis-cli -p 6379 save
 
 
-confirm_next "Step3 : restore local sqc service (yes/no)"
+echo "Step3 : restore local sqc service (yes/no)"
 turn2mt $sqc_dir"/bin/sqc_redis.xml"
 sudo bash $sqc_dir'/admin/restart.sh'
 is_synced
 echo 'start $scrip db_rdsesscache_d'
 sudo bash $dbd_dir'/admin/start.sh'
 
-confirm_next "Step4 : restore remote sqc service (yes/no) "
-ssh -np32200 $dstip "sudo rm /data1/dump.rdb.*"
-scp -P32200 -C /data1/dump.rdb.* $dstip:/data1
+echo "Step4 : restore remote sqc service (yes/no) "
+ssh -np32200 $dstip "sudo rm /data1/dump.rdb.*" || exit
+scp -P32200 -C /data1/dump.rdb.* $dstip:/data1 || exit
 echo 'start remote redis-server'
-ssh -np3200 $dstip "sudo /data1/redis-server-lz redis.conf.ban && sudo /data1/redis-server-lz redis.conf.core"
+ssh -np32200 $dstip "sudo /data1/redis-server-lz /data1/redis.conf.ban && sudo /data1/redis-server-lz /data1/redis.conf.core" || exit
+sleep 10
 echo 'change remote sqc mode to mt'
-ssh -np32200 $dstip "sudo sed -i 's/<mode>2<\/mode>/<mode>1<\/mode>/' $sqc_dir'/bin/sqc_redis.xml' && sudo bash $sqc_dir/admin/restart.sh" 
+ssh -np32200 $dstip "sudo sed -i 's/<mode>2<\/mode>/<mode>1<\/mode>/' $sqc_dir'/bin/sqc_redis.xml' && sudo bash $sqc_dir/admin/restart.sh"  || exit
 echo 'waiting data be synced to redis'
 while :
 do
-	msg_file=$(ssh -np32200 $dstip 'find /data/ -name "msg.0*" -mmin -30 -size +0c ')
+	msg_file=$(ssh -np32200 $dstip 'sudo find /data/ -name "msg.0*" -mmin -30 -size +0c ')
 	[[ -z "$msg_file" ]] && break
 done
 echo 'finally starting dbd process'
