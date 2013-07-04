@@ -12,8 +12,10 @@ function isIp($ip){
 }
 function get($url){
 	    $ch = curl_init();
+		$headers=array('User-Agent:Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.110 Safari/537.36');
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		$content = curl_exec($ch);
 		curl_close($ch);
 		return $content;
@@ -23,6 +25,30 @@ function getProcInfo($serverId){
 	$url='http://cmdb1.sysop.duowan.com:8088/webservice/serverProc/getByServerId.do?server_id='.$serverId;
 	$content=get($url);	
 	return $content;
+}
+function getDnsInfo($ip){
+	$appid = 2;
+	$random = "abcdef";
+	$class = "OperatorController";
+	$method = "searchAction";
+	$appkey = "3ZpAqGyVu8N17ncrPPnS1vlVLigctbFN";
+	$cypher = sha1($appid.$appkey.$random.date('YmdHi'));
+	$api_data = array('search_fuzzy_matching'=>'2','query'=>"$ip",'search_mode'=>'ip','search_result_list'=>'0');
+	$api_data = json_encode($api_data);
+	$url = "http://name.sysop.duowan.com:63160/api/ex.html?class=$class&method=$method&api_data=$api_data&appid=$appid&random=$random&cypher=$cypher";
+	$result = get($url);
+	$dnsinfo = json_decode($result,true);
+	$domain="";
+	if(!empty($dnsinfo)){
+			foreach ($dnsinfo as $record){
+				$domain.=$record['host'].".".$record['zone']."\n";
+			}
+			return $domain;
+	}
+	else{
+			$domain = "no dns info\n";
+			return $domain;
+	}
 }
 function formatHostIp($ipstr){
 	$ip_array=explode('-',$ipstr);	
@@ -108,6 +134,10 @@ function printHost($host){
 	echo "-----------------------------------------------\n";
 	echo "|运维负责人:	|	".$host['sysopResponsibleAdmin']."\n";
 	echo "-----------------------------------------------\n";
+	echo "	".$host['ip']." 域名记录:		\n";
+	echo "***********************************************\n";
+	echo $host['record'];
+	echo "***********************************************\n";
 	echo "	".$host['ip']." 进程列表:		\n";
 	echo "***********************************************\n";
 	echo preg_replace('/ /',' * ',$procinfo);
@@ -118,6 +148,7 @@ array_shift($argv);
 foreach($argv as $ip){
 	if(isIp($ip)){
 		$host=getHost($ip);
+		$host['record']=getDnsInfo($ip);
 		$host && printHost($host);
 	}
 	else{
