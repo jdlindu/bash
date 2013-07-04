@@ -87,7 +87,7 @@ fi
 scrip=$(getSingleIp) #source ip
 dstip="$1"
 sqc_dir='/data/services/db_sqc_rdsesscache_d-306786'
-dbd_dir='/data/services/db_rdsesscache_d-306786'
+dbd_dir='/data/services/db_rdsesscache_d-343472'
 
 confirm_next "Step 0 : Have you update $1's kernel yet ? (yes/no)"
 confirm_next "Step 1 : Please stop $scrip $1  db_rdsesscache_d in pakage system (yes/no)"
