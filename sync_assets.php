@@ -14,10 +14,7 @@ function alarm($content){
 	echo exec($cmd);
 }
 
-#$asset_url='http://esb.sysop.duowan.com:35000/webservice/server/getAllServer.do';
 $asset_url='http://cmdb.sysop.duowan.com:8088/webservice/server/getServerInfos.do';
-$relation_url='http://esb.sysop.duowan.com:35000/webservice/getAllRelation.action';
-$business_url='http://esb.sysop.duowan.com:35000/webservice/getAllBusiness.action';
 $proc_url='http://cmdb1.sysop.duowan.com:8088/webservice/serverProc/getByServerId.do?server_id=';
 
 $fetch_content=get($asset_url);
@@ -32,11 +29,6 @@ else{
 
 $result_array = json_decode($fetch_content,true);
 $hosts = $result_array['object'];
-$relations_array=json_decode(get($relation_url),true);
-$relations=$relations_array['object'];
-$models_array=json_decode(get($business_url),true);
-$models=$models_array['object'];
-//print_r($hosts);
 if($hosts && is_array($hosts)){
 	$mem_ip='183.61.143.222';
 	$mem_port='11211';
@@ -53,45 +45,41 @@ if($hosts && is_array($hosts)){
   		//sleep 
 	}	 
 
-	foreach($models as $model){
-		$mem->set($model['businessId'],$model['name']);
-	}
-
-	foreach($relations as $relation){
-		$model_name=$mem->get($relation['business_id']);
-		if(!$mem->add($relation['assets_id'],$model_name,0,0)){
-			$pre_model=$mem->get($relation['assets_id']);
-			$model_name.=','.$pre_model;
-			$mem->set($relation['assets_id'],$model_name,0,0);
-		}
-	}
-
 	foreach($hosts as $host){
-		// skip internel ip
-		if(preg_match('/^10\./',$host['ip'])){
-			continue;	
-		}
 
 		// ip_id ---> host's serverid
 		$mem->set($host['ip'].'_id',$host['serverId'],0,0);
-		//$fetch_proc_url= $proc_url.$host['serverId'];
-		//$proc=system("curl -s $fetch_proc_url ");
-		//echo $proc;
+
 		//set business_model
 		$host['serviceName']=$mem->get($host['serverId']);	
+
 		//find server guid by ip
 		$mem->set($host['ip'],$host['serverGuid'],0,0);
-		$host['ip1']=$host['isp'].'-'.$host['ip'];
-		if(!$mem->add($host['serverGuid'],$host,0,0)){
-			$pre_host=$mem->get($host['serverGuid']);
-			// in case one machine have three ips
-			if(array_key_exists('ip2',$pre_host)){
-				$pre_host['ip3']=$host['isp'].'-'.$host['ip'];
+
+		$ip = $host['ip'];
+		$isp = $host['isp'];
+		$pre_host=$mem->get($host['serverGuid']);
+		if(!empty($pre_host)){
+			$host=$pre_host;
+		}
+		if(preg_match('/^(10\.|172\.(1(6|7|8|9)|(2[0-9])|(3[0-2]))\.|192\.168\.)/',$ip)){
+			 $host['internal_ip'][]=$ip;
+			 $mem->set($host['serverGuid'],$host,0,0);
+		}
+		else{
+			// 防止ip变成内网ip
+			$host['ip']=$ip;
+			$host['ips'][$isp]=$isp.'-'.$ip;
+			switch($isp){
+						case 4:		$host['iplist']['dx']=$ip ;break;
+						case 5:		$host['iplist']['lt']=$ip ;break;
+						case 6:		$host['iplist']['bgp']=$ip  ;break;
+						case 7:		$host['iplist']['edu']=$ip ;break;
+						case 8:		$host['iplist']['yd']=$ip ;break;
+						case 14:	$host['iplist']['hk']=$ip ;break;
+						case 16:	$host['iplist']['bra']=$ip ;break;
 			}
-			else{
-				$pre_host['ip2']=$host['isp'].'-'.$host['ip'];
-			}
-			$mem->set($host['serverGuid'],$pre_host,0,0);
+			$mem->set($host['serverGuid'],$host,0,0);
 		}
 	}
 	

@@ -53,6 +53,11 @@ function connectMemcache(){
 		return $mem;
 	}
 }
+function closeMemConnect($mem){
+	if(!$mem->close()){
+		echo 'cannot close memcache connect!';
+	}
+}
 function getHost($ip){
 	$mem=connectMemcache();
 	$guid=$mem->get($ip);
@@ -64,14 +69,12 @@ function getHost($ip){
 		echo "no ip info!";
 		return false;
 	}
+	closeMemConnect($mem);
 }
 function printHost($host){
-	$hostinfo=formatHostIp($host['ip1']);
-	if(isset($host['ip2'])){
-	$hostinfo.=" | ".formatHostIp($host['ip2']);
-	}
-	if(isset($host['ip3'])){
-	$hostinfo.=" | ".formatHostIp($host['ip3']);
+	$hostinfo="";
+	foreach ($host['ips'] as $ipstr ){
+		$hostinfo.=formatHostIp($ipstr)." | ";	
 	}
 	$procinfo=getProcInfo($host['serverId']);
 	switch($host['status']){
@@ -88,6 +91,9 @@ function printHost($host){
 	echo "-----------------------------------------------\n";
 	echo "|服务器IP:	|	".$hostinfo."\n";
 	echo "-----------------------------------------------\n";
+	if(!empty($host['internal_ip'])){
+	echo "|内网IP:	|	".implode(',',$host['internal_ip'])."\n";
+	echo "-----------------------------------------------\n";}
 	echo "|服务器ID:	|	".$host['serverId']."\n";
 	echo "-----------------------------------------------\n";
 	echo "|机房GroupID:	|	".$host['priGroupId']."\n";
@@ -96,7 +102,7 @@ function printHost($host){
 	echo "-----------------------------------------------\n";
 	echo "|状态:		|	".$status."\n";
 	echo "-----------------------------------------------\n";
-	echo "|业务模块:	|	".$host['serviceName']."\n";
+	echo "|业务模块:	|	".$host['buss']."\n";
 	echo "-----------------------------------------------\n";
 	echo "|开发负责人:	|	".$host['responsibleAdmin']."\n";
 	echo "-----------------------------------------------\n";
