@@ -74,6 +74,23 @@ function get_version_ip($pkg_name,$version_id){
 	return $version_iplist;
 }
 
+function get_all_pkgversion_ip($versioninfo){
+	$all_version_iplist=array();
+	foreach($versioninfo['object'] as $version){
+		$single_version_iplist=get_version_ip($version['packageName'],$version['versionId']);
+		!empty($single_version_iplist) && $all_version_iplist=array_merge($all_version_iplist,$single_version_iplist['object']);
+	}
+	if(empty($all_version_iplist)){
+		echo "no this pkg's instance info";
+		exit;
+	}
+	//filter internel ip 
+	$all_version_iplist_str=preg_replace('/,.*/', '', implode("\n",$all_version_iplist));
+	$all_version_iplist=explode("\n",$all_version_iplist_str);
+	$all_version_iplist=array_unique($all_version_iplist);
+	return $all_version_iplist;
+}
+
 array_shift($argv);
 $pkg_name=$argv[0];
 $version_name="";
@@ -103,6 +120,14 @@ if(!$version_name){
 	list_version_instance($versioninfo);
 	exit;
 }
+
+if($version_name == "all"){
+	$all_pkgversion_iplist=get_all_pkgversion_ip($versioninfo);
+	echo implode("\n",$all_pkgversion_iplist);
+	echo "\n";
+	exit;
+}
+
 $version_id=get_versionid_by_name($version_name,$versioninfo);
 if(!$version_id){
 	echo "没有此版本！\n看看下面有没有你要找的版本吧\n";
