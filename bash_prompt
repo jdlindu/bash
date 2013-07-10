@@ -1,0 +1,61 @@
+#!/bin/bash
+
+
+function color_vars(){
+
+  Black="\033[0;30m"
+  Blue="\033[0;34m"
+  Green="\033[0;32m"
+  Cyan="\033[0;36m"
+  Red="\033[0;31m"
+  Purple="\033[0;35m"
+  Brown="\033[0;33m"
+  Light_Gray="\033[0;37m"
+  Dark_Gray="\033[1;30m"
+  Light_Blue="\033[1;34m"
+  Light_Green="\033[1;32m"
+  Light_Cyan="\033[1;36m"
+  Light_Red="\033[1;31m"
+  Light_Purple="\033[1;35m"
+  Yellow="\033[1;33m"
+  White="\033[1;37m"
+
+}
+
+function title_prompt(){
+
+  HOSTINFO_FILE="/home/dspeak/yyms/hostinfo.ini"
+  [ -f "$HOSTINFO_FILE" ] || exit
+  room=$(grep "room=" $HOSTINFO_FILE | sed 's/room=//g')
+  ip=$(ifconfig |grep ^eth -A 2 |egrep 'inet +addr:' | awk -F '[ :]+' '{print $4}' |head -1)
+  ip_segament=$(echo $ip | cut -d. -f 4 )
+  buss_name=$(grep buss_name $HOSTINFO_FILE | sed 's/^.*->.*->//g' )
+  TITLEBAR="\033]0;($ip_segament)$room->$buss_name\007"
+}
+
+function pwd_prompt(){
+  if [[ $PWD == "/data/services" ]]; then
+        ls /data/services/ 
+  elif [[ $PWD == "/data/yy/log" ]]; then
+        du -BM  --max-depth=1 | sort -nr
+    else
+        newPWD=${PWD}
+    fi
+}
+
+content_prompt() {
+  
+  export PS1="${TITLEBAR}\n$Black[$Light_Blue\t$Black]$Light_Green$ip $Light_Purple* $Dark_Gray[ $Light_Red\w$Dark_Gray ]$Light_Cyan\$ $White"
+
+}
+
+build_prompt(){
+  
+  color_vars
+  title_prompt
+  PROMPT_COMMAND="pwd_prompt"
+  content_prompt
+
+}
+
+build_prompt
