@@ -25,7 +25,7 @@ function color_vars(){
 function title_prompt(){
 
   HOSTINFO_FILE="/home/dspeak/yyms/hostinfo.ini"
-  [ -f "$HOSTINFO_FILE" ] || exit
+  [ -f "$HOSTINFO_FILE" ] || return
   room=$(grep "room=" $HOSTINFO_FILE | sed 's/room=//g')
   ip=$(ifconfig |grep ^eth -A 2 |egrep 'inet +addr:' | awk -F '[ :]+' '{print $4}' |head -1)
   ip_segament=$(echo $ip | cut -d. -f 4 )
