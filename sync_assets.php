@@ -64,7 +64,6 @@ if($hosts && is_array($hosts)){
 		}
 		if(preg_match('/^(10\.|172\.(1(6|7|8|9)|(2[0-9])|(3[0-2]))\.|192\.168\.)/',$ip)){
 			 $host['internal_ip'][]=$ip;
-			 $mem->set($host['serverGuid'],$host,0,0);
 		}
 		else{
 			// 防止ip变成内网ip
@@ -79,8 +78,8 @@ if($hosts && is_array($hosts)){
 						case 14:	$host['iplist']['hk']=$ip ;break;
 						case 16:	$host['iplist']['bra']=$ip ;break;
 			}
-			$mem->set($host['serverGuid'],$host,0,0);
 		}
+		$mem->set($host['serverGuid'],$host,0,0);
 	}
 	
 }
