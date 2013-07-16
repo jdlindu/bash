@@ -68,6 +68,7 @@ if($hosts && is_array($hosts)){
 		else{
 			// 防止ip变成内网ip
 			$host['ip']=$ip;
+			$host['isp']=$isp;
 			$host['ips'][$isp]=$isp.'-'.$ip;
 			switch($isp){
 						case 4:		$host['iplist']['dx']=$ip ;break;
