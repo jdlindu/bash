@@ -1,14 +1,22 @@
 #!/bin/bash
 
+#
+set -o pipefail
+
 FUNCNAME=$(basename $0)
+
+function prompt_tip {
+	error_exit "Usage: $(basename $0) [ -v ] pkg version start|stop|restart [ -y ]" 1
+}
 
 function info_log {
 
    local content
 
    while read content; do
-
-	printf "%s\n" "$content"
+	if [[ "$DEBUG" == "TRUE" ]];then
+		printf "%s\n" "$content"
+	fi
    	printf "%s | %s | [ info ] | %s\n" "$(date +'%F %T')" "$SUDO_USER" "$content" 1>&2 >> $logFile
 
    done < <(echo -e "$*")
@@ -18,26 +26,15 @@ function info_log {
 
 function check_privilege(){
 	if [ "$UID" -ne 0 ] ; then
-		echo "only root can run this script!"
-		exit 1
+		error_exit "only root can run this script!" 1
 	fi
 }
 function confirm(){
-	[ -z $PS1 ] && echo "non-interactive shell , maybe you should append -y option!" && exit
-	while :
-        do
-        	read -p "$*" answer
-        	if [ "$answer" == 'yes' ] || [ "$answer" == 'YES' ]
-                then
-                	info_log "action confirm!"
-                	return 0
-		elif [ "$answer" == 'no' ] || [ "$answer" == 'NO' ]
-		then
-			info_log "actin cancel!"
-			return 1
-        	fi
-	done
+	if [[ "$1" != "-y" ]] ;then
+        error_exit "Action cancel,to confirm this action you must append -y option" 1
+	fi
 }
+
 
 function pkg_tip(){
 	local pkgs=$(ls -F /data/services | egrep ".*$pkgName.*-.*/$" | awk -F- '{print $1}')
@@ -49,14 +46,13 @@ function pkg_tip(){
 function check_pkgname(){
 
 	if [ -z "$1" ];then
-		info_log "Usage: $(basename $0) pkg version start|stop|restart [ -y ]"
-		exit 1
+		prompt_tip
 	else
 		pkgDir=$(ls -F /data/services | egrep "^$pkgName-.*/$")
 		if [ -z "$pkgDir" ] ; then
 			info_log "pkgName=$pkgName not exist!"
 			pkg_tip
-			exit 1
+			error_exit info_log "pkgName=$pkgName not exist!" 1
 		fi
 	fi
 }
@@ -66,11 +62,11 @@ function check_version(){
 	local versions=$(ls -F /data/services | egrep "^$pkgName-.*/$" | awk -F'-|/' '{print $2}')
 	if [[ -z "$2" ]] ; then
 		info_log "version cannot be null,posibble version is :\n$versions"
-		exit 1
+		error_exit "version cannot be null,posibble version is :\n$versions" 1
 	else
 		if [ ! -d "$pkgPath" ] ; then
                 	info_log "wrong version !! possible version is : \n$versions"
-                	exit 1
+                	error_exit "wrong version !! possible version is : \n$versions" 1
         	fi		
 	fi
 }
@@ -173,6 +169,35 @@ function del_cron {
    return
 }
 
+function status_report(){
+
+	local status=${1:-0}
+	if [ "$1" -eq 0 ];then
+		info_log "\n$pkgName $version $action comepleted succeed!"
+	else
+		info_log "\n$pkgName $version $action failed!"
+	fi
+	echo "{\"pkg\":\"$pkgName\",\"version\":\"$version\",\"action\":\"$action\",\"status\":\"$1\"}"
+}
+
+function error_exit(){
+	
+	local msg=${1:-$FUNCNAME [ERR ]}
+
+   	local status=${2:-1}
+	
+	echo "{\"pkg\":\"$pkgName\",\"version\":\"$version\",\"action\":\"$action\",\"status\":\"$status\",\"msg\":\"$msg\"}"	
+
+	exit
+
+}
+
+if [ "$1" = "-v" ];then
+                echo "turn debug on"
+                DEBUG="TRUE"
+                shift
+fi
+
 check_privilege
 logFile="/data/bizop/public-scripts/log/control_pkg.log.$(date +%F)"
 pkgHomeDir="/data/services"
@@ -187,43 +212,57 @@ startScript="$pkgScriptPath/start.sh"
 stopScript="$pkgScriptPath/stop.sh"
 restartScript="$pkgScriptPath/restart.sh"
 
+tmpLog=$(mktemp -t $pkgName-$version-$action.XXXXXX.log)
+info_log "tmpLog is $tmpLog"
+
 case "$action" in
 
 "start")
-	[[ "${!#}" == "-y" ]] || confirm "are you sure you are goingto start $pkgName-$version(yes/no)"
-	if [[ $? -eq 0 ]];then
-		/bin/bash $startScript && add_cron $pkgName $version;
+	confirm "${!#}"
+	if [[ "$DEBUG" = "TRUE" ]];then
+		 /bin/bash $startScript | tee $tmpLog
 	else
-		exit 1
+		/bin/bash $startScript > $tmpLog 2>&1
 	fi
+	if [ "$?" -eq 0 ];then
+		add_cron $pkgName $version > $tmpLog 2>&1 && status_report $?;
+	else
+		error_exit "$action $pkgName failed ! detail please see $tmpLog" 1
+	fi	
 	;;
 
 "stop")
-	[[ "${!#}" == "-y" ]] || confirm "are you sure you are goingto stop $pkgName-$version(yes/no)"
-	if [[ $? -eq 0 ]];then
-                /bin/bash $stopScript && del_cron $pkgName $version;
+	confirm "${!#}"
+        if [[ "$DEBUG" = "TRUE" ]];then
+		/bin/bash $stopScript |  tee $tmpLog
 	else
-		exit 1
-        fi
+        	/bin/bash $stopScript > $tmpLog 2>&1
+	fi
+	if [ "$?" -eq 0 ];then
+		del_cron $pkgName $version  > $tmpLog 2>&1 && status_report $?;
+	else
+		error_exit "$action $pkgName failed ! detail please see $tmpLog" 1	
+	fi
 	;;
 
 "restart")
-	[[ "${!#}" == "-y" ]] || confirm "are you sure you are goingto restart $pkgName-$version(yes/no)"
-	if [[ $? -eq 0 ]];then
-                /bin/bash $restartScript;
+	confirm "${!#}"
+	if [[ "$DEBUG" = "TRUE" ]];then
+		/bin/bash $restartScript |  tee $tmpLog
 	else
-		exit 1
+        	/bin/bash $restartScript > $tmpLog 2>&1
+	fi
+	if [ "$?" -eq 0 ];then
+                status_report $?;
+        else
+                error_exit "$action $pkgName failed ! detail please see $tmpLog" 1
         fi
 	;;
 "")
-	info_log "Usage: $(basename $0) pkg version start|stop|restart [ -y ]"
-	exit 1
+	prompt_tip
 	;;
 
 *)
-	info_log "Usage: $(basename $0) pkg version start|stop|restart [ -y ]"
-	exit 1
+	prompt_tip
 	;;
 esac
-
-[[ "$?" -eq 0 ]] && info_log "\n$pkg $version $action comepleted success!"
